@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# Optional local guard: rejects a commit message that is not a valid Conventional Commit.
+# Enable with: git config core.hooksPath .githooks
+exec npx --no-install commitlint --edit "$1"
