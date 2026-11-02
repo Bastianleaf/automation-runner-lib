@@ -1,0 +1,12 @@
+[
+  {
+    "id": "TASK-1",
+    "title": "Write the release rules",
+    "assignee": "ana"
+  },
+  {
+    "id": "TASK-2",
+    "title": "Publish v0.1.0",
+    "assignee": "ben"
+  }
+]

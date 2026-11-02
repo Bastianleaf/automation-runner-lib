@@ -1,0 +1,17 @@
+# One automation = which runtime produces the text, which apply adapter remembers what was announced,
+# and where the message goes. The trigger (cron, systemd timer, ...) lives outside the library.
+id: new-items
+description: Announces items that appeared in items.json since the last run.
+schedule: { weekdays: true, times: ["every 15 min"], timezone: UTC }
+action:
+  skill: new-items
+runtime:
+  provider: items-file
+  options:
+    file: examples/new-items/items.json
+apply:
+  provider: seen-items
+outputs:
+  - provider: console
+  # - provider: slack-webhook   # needs SLACK_WEBHOOK_URL in the environment or the secrets file
+deliverFailureNotice: true
