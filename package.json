@@ -1,0 +1,29 @@
+{
+  "name": "automation-runner-lib",
+  "version": "0.0.0",
+  "description": "A small, runtime-agnostic engine for scheduled automations: pluggable runtime, apply and output adapters, with deliver-then-commit semantics.",
+  "license": "MIT",
+  "author": "Bastianleaf",
+  "repository": { "type": "git", "url": "git+https://github.com/Bastianleaf/automation-runner-lib.git" },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/*.test.ts src/*/*.test.ts",
+    "commitlint": "commitlint",
+    "prepare": "npm run build"
+  },
+  "dependencies": { "yaml": "^2.6.1" },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.0",
+    "@commitlint/config-conventional": "^19.6.0",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
