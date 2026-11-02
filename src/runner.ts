@@ -9,6 +9,19 @@ import { createSecrets } from "./secrets.js";
 import { readRunState, writeRunState } from "./state.js";
 import type { ApplyAdapter, AutomationDefinition, DeliveryStatus, OutputAdapter, RunState, RuntimeAdapter } from "./types.js";
 
+/** Texts the runner writes into delivered messages; override them to change language or tone. */
+export interface RunnerMessages {
+  /** Delivered when the runtime failed (unless the automation sets `deliverFailureNotice: false`). */
+  failureNotice(automation: AutomationDefinition, error: string | null): string;
+  /** Delivered, appended to the runtime output, when the apply step threw. */
+  applyFailure(provider: string, message: string, runtimeOutput: string): string;
+}
+
+export const DEFAULT_MESSAGES: RunnerMessages = {
+  failureNotice: (a, error) => `⚠️ Automation "${a.id}" failed running "${a.action.skill}".\n\n${error ?? "Unknown error"}`,
+  applyFailure: (provider, message, output) => `${output}\n\n⚠️ The apply step failed (${provider}): ${message}`,
+};
+
 export interface RunnerConfig {
   /** Where `<id>.yml` definitions live. */
   automationsDir: string;
@@ -20,6 +33,8 @@ export interface RunnerConfig {
   secretsFile?: string;
   /** Working directory handed to runtimes when the automation does not set `action.cwd`. Default: `process.cwd()`. */
   defaultCwd?: string;
+  /** Overrides for the texts the runner itself writes. */
+  messages?: Partial<RunnerMessages>;
 }
 
 /** What every adapter factory receives. */
@@ -50,11 +65,13 @@ export class Runner {
   private readonly stateDir: string;
   private readonly logsDir: string;
   private readonly secret: (name: string) => string;
+  private readonly messages: RunnerMessages;
 
   constructor(private readonly config: RunnerConfig) {
     this.stateDir = config.stateDir ?? path.join(process.cwd(), "state");
     this.logsDir = config.logsDir ?? path.join(process.cwd(), "logs");
     this.secret = createSecrets(config.secretsFile);
+    this.messages = { ...DEFAULT_MESSAGES, ...config.messages };
     // Built-ins that need no extra dependency.
     this.outputs.register("console", () => new ConsoleOutput());
     this.outputs.register("slack-webhook", (ctx) => new SlackWebhookOutput(ctx.secret("SLACK_WEBHOOK_URL")));
@@ -103,8 +120,8 @@ export class Runner {
       timeoutMs: automation.runtime.timeoutMs,
       options: automation.runtime.options,
     });
-    logger.info("runtime_finished", { success: result.success, exitCode: result.exitCode, durationMs: result.durationMs });
-    if (!result.success) logger.error("runtime_failed", { error: result.error });
+    logger.info("skill_finished", { success: result.success, exitCode: result.exitCode, durationMs: result.durationMs });
+    if (!result.success) logger.error("skill_failed", { error: result.error });
 
     let deliveryStatus: DeliveryStatus = "skipped";
     let deliveries: Record<string, DeliveryStatus> | undefined;
@@ -131,7 +148,7 @@ export class Runner {
         const message = err instanceof Error ? err.message : String(err);
         logger.error("apply_failed", { provider: automation.apply.provider, error: message });
         applyErrors = [message];
-        outputForDelivery = `${result.output}\n\n⚠️ The apply step failed (${automation.apply.provider}): ${message}`;
+        outputForDelivery = this.messages.applyFailure(automation.apply.provider, message, result.output);
       }
     }
 
@@ -145,7 +162,7 @@ export class Runner {
     } else if (!noDelivery) {
       const message = result.success
         ? outputForDelivery
-        : `⚠️ Automation "${automation.id}" failed running "${automation.action.skill}".\n\n${result.error ?? "Unknown error"}`;
+        : this.messages.failureNotice(automation, result.error);
       deliveries = await this.deliverToAll(automation, message, !result.success, ctx);
       deliveryStatus = aggregate(Object.values(deliveries));
 

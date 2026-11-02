@@ -5,9 +5,9 @@ import path from "node:path";
 import test from "node:test";
 import { createRunner, OutputNotConfiguredError, type ApplyResult, type AutomationDefinition } from "./index.js";
 
-function setup() {
+function setup(messages?: Parameters<typeof createRunner>[0]["messages"]) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "runner-"));
-  const runner = createRunner({ automationsDir: path.join(dir, "automations"), stateDir: path.join(dir, "state"), logsDir: path.join(dir, "logs") });
+  const runner = createRunner({ automationsDir: path.join(dir, "automations"), stateDir: path.join(dir, "state"), logsDir: path.join(dir, "logs"), messages });
   const delivered: string[] = [];
   runner.registerRuntime("echo", () => ({
     run: async (input) => ({ success: input.skill !== "boom", output: `out:${input.skill}`, exitCode: input.skill === "boom" ? 1 : 0, durationMs: 1, error: input.skill === "boom" ? "exploded" : null }),
@@ -98,4 +98,16 @@ test("a failed run sends a failure notice unless deliverFailureNotice is false",
 test("an unknown provider names what is registered", async () => {
   const { runner } = setup();
   await assert.rejects(runner.runDefinition(def({ runtime: { provider: "nope" } })), /Runtime "nope" is not registered\. Registered: echo/);
+});
+
+test("the failure and apply-failure texts can be overridden", async () => {
+  const { runner, delivered } = setup({ failureNotice: (a, e) => `FALLÓ ${a.id}: ${e}`, applyFailure: (p, m, o) => `${o} | ${p}: ${m}` });
+  runner.registerApply("throws", () => ({
+    apply: async () => {
+      throw new Error("disk full");
+    },
+  }));
+  await runner.runDefinition(def({ action: { skill: "boom" } }));
+  await runner.runDefinition(def({ apply: { provider: "throws" } }));
+  assert.deepEqual(delivered, ["FALLÓ job: exploded", "out:ok | throws: disk full"]);
 });
